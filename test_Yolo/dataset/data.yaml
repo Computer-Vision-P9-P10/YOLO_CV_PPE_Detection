@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['helmet', 'jacket']
+
+roboflow:
+  workspace: yolocvppedetection
+  project: d-5q0fm-z5nch
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/yolocvppedetection/d-5q0fm-z5nch/dataset/1
