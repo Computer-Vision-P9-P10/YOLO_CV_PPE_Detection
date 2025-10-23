@@ -11,7 +11,7 @@ class YOLO_trainer:
         self.trained_weights = None  # Updated after training
 
     def train_model(self, epochs=100, resume=True):
-         # parameter can be adjust based on https://docs.ultralytics.com/usage/cfg/
+         # parameters can be adjusted based on https://docs.ultralytics.com/usage/cfg/
         model = YOLO(self.model_config)
         train = model.train(
             data=self.data_yaml,
