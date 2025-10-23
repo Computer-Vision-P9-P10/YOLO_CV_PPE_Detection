@@ -105,3 +105,66 @@ class YOLO_trainer:
 
         print("Inference and post-processing complete")
 
+"""
+Example from github copilot :)
+if __name__ == "__main__":
+    # Minimal example — adjust model/data paths and device ("mps" on Mac, "cpu" or GPU id)
+    trainer = YOLO_trainer(
+        model_config="yolo11s.yaml",
+        data_yaml="dataset/data.yaml",
+        device="mps"
+    )
+
+    # To train (uncomment to run)
+    # trainer.train_model(epochs=15, resume=True)
+
+    # Or set trained_weights if you already have a .pt file
+    # trainer.trained_weights = "runs/train/exp/weights/best.pt"
+
+    # Validate (requires trainer.trained_weights)
+    # val_results = trainer.validate()
+    # print(val_results)
+
+    # Inference example (will run even without training if you set trainer.trained_weights)
+    out = trainer.postprocess_and_inference(
+        "dataset/test/images/00504_jpg.rf.83a7e15ff43c0f937313abc601afa6c5.jpg",
+        conf=0.25,
+        iou=0.45,
+        save=True,
+        save_crop=False,
+        show=False
+    )
+
+    print("Done")
+```# filepath: /Users/nicolaibergulff/Desktop/AAU/9.Semester/P9/YOLOv11_CV_PPE_Detection/test_Yolo/yolo.py
+# ...existing code...
+if __name__ == "__main__":
+    # Minimal example — adjust model/data paths and device ("mps" on Mac, "cpu" or GPU id)
+    trainer = YOLO_trainer(
+        model_config="yolo11s.yaml",
+        data_yaml="dataset/data.yaml",
+        device="mps"
+    )
+
+    # To train (uncomment to run)
+    # trainer.train_model(epochs=15, resume=True)
+
+    # Or set trained_weights if you already have a .pt file
+    # trainer.trained_weights = "runs/train/exp/weights/best.pt"
+
+    # Validate (requires trainer.trained_weights)
+    # val_results = trainer.validate()
+    # print(val_results)
+
+    # Inference example (will run even without training if you set trainer.trained_weights)
+    out = trainer.postprocess_and_inference(
+        "dataset/test/images/00504_jpg.rf.83a7e15ff43c0f937313abc601afa6c5.jpg",
+        conf=0.25,
+        iou=0.45,
+        save=True,
+        save_crop=False,
+        show=False
+    )
+
+    print("Done")
+"""
