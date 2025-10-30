@@ -10,13 +10,14 @@ class YOLO_trainer:
         self.device = device  # cpu or mps (or gpu ids)
         self.trained_weights = None  # Updated after training
 
-    def train_model(self, epochs=100, resume=True):
+    def train_model(self, epochs=100, resume=True, patience = 100):
          # parameters can be adjusted based on https://docs.ultralytics.com/usage/cfg/
         model = YOLO(self.model_config)
         train = model.train(
             data=self.data_yaml,
             epochs=epochs,
             device=self.device,
+            patience = patience,
             resume=resume,
         )
 
@@ -104,18 +105,46 @@ class YOLO_trainer:
                 pass
 
         print("Inference and post-processing complete")
+    
+    # Export model in format onnx -> think that the format used for edge devices
+    def export_model(self):
+        model = YOLO(self.trained_weights)
+        model.export(format="onnx")
 
 # Base example of training yolov11s on 1 epoch for mac -
 if __name__ == "__main__":
     trainer = YOLO_trainer(
         model_config="yolo11s.yaml", 
         data_yaml= "./dataset/data.yaml", # path here can't be /test_Yolo/dataset/data.yaml (not on mac) -> ./dataset/data.yaml works
-        device="mps"
+        device="mps",
     )
-    print("Training for 1 epoch")
+    """ print("Training for 1 epoch")
     trainer.train_model(epochs=1, resume=False)
+    val_results = trainer.validate()
+    out = trainer.postprocess_and_inference(
+        "./dataset/test/images/00504_jpg.rf.83a7e15ff43c0f937313abc601afa6c5.jpg",
+        conf=0.25,
+        iou=0.45,
+        save=True,
+        save_crop=False,
+        show=False
+    ) """
     
-    
+    # Use the weights from tilt/weights/best.pt for validation and inference
+    weights_path = "./tilt/train9/weights/best.pt"
+    if os.path.exists(weights_path):
+        trainer.trained_weights = weights_path
+        val_results = trainer.validate()
+        out = trainer.postprocess_and_inference(
+            "./dataset/test/images/00504_jpg.rf.83a7e15ff43c0f937313abc601afa6c5.jpg",
+            conf=0.25,
+            iou=0.45,
+            save=True,
+            save_crop=False,
+            show=False
+        )
+    else:
+        print(f"Error: weights file '{weights_path}' not found. Please train the model or provide a valid weights file.")
 """
 Example from github copilot :)
 if __name__ == "__main__":
