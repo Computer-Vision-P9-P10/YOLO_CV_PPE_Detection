@@ -39,82 +39,109 @@ import cv2
 import torch
 from ultralytics import YOLO
 
-# Configuration
-MODEL_PATH = "best.pt"              # replace with yolov8n.pt for max speed if acceptable
-ENGINE_PATH = "best_fp16.engine"    # TensorRT engine output/reuse
-IMG_SIZE = 512                      # reduce from 640 for speed (try 416 too)
-USE_TENSORRT = True
-SHOW_WINDOW = False                 # disable to measure pure speed
+# Config
+MODEL_PATH = "yolov8n.pt"           # use a small model for testing; replace with best.pt later
+ENGINE_PATH = "best_fp16.engine"
+IMG_SIZE = 416                      # smaller size for speed
+USE_TENSORRT = False                # start False; enable after base works
+SHOW_WINDOW = False
 PRINT_FPS = True
-FRAME_SKIP = 0                      # set to 1 to process every other frame, etc.
+FRAME_SKIP = 0
 USE_GSTREAMER = True
 
-# Hardware decode at 1280x720 (adjust lower if still slow)
 GST_PIPELINE = (
     "filesrc location=data/DJI_0020.MP4 ! qtdemux ! h264parse ! nvv4l2decoder ! "
     "video/x-raw(memory:NVMM),format=NV12 ! nvvidconv ! "
-    "video/x-raw,width=1280,height=720,format=BGRx ! videoconvert ! "
+    "video/x-raw,width=960,height=540,format=BGRx ! videoconvert ! "
     "video/x-raw,format=BGR ! appsink drop=1 sync=0"
 )
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-half = device.startswith("cuda")    # Jetson supports FP16
+half = device.startswith("cuda")
 
 def load_model():
-    if USE_TENSORRT and os.path.isfile(ENGINE_PATH):
-        return YOLO(ENGINE_PATH)
-    model = YOLO(MODEL_PATH)
-    if USE_TENSORRT and device.startswith("cuda"):
-        model.export(format="engine", half=half, device=device, imgsz=IMG_SIZE)
-        return YOLO(ENGINE_PATH)
-    return model
+    try:
+        if USE_TENSORRT and os.path.isfile(ENGINE_PATH):
+            print(f"[INFO] Loading existing engine: {ENGINE_PATH}")
+            return YOLO(ENGINE_PATH)
+        print(f"[INFO] Loading weights: {MODEL_PATH}")
+        m = YOLO(MODEL_PATH)
+        if USE_TENSORRT and device.startswith("cuda"):
+            print("[INFO] Exporting TensorRT engine (this may take a while)...")
+            m.export(format="engine", half=half, device=device, imgsz=IMG_SIZE)
+            print("[INFO] Engine export done.")
+            return YOLO(ENGINE_PATH)
+        return m
+    except Exception as e:
+        print(f"[ERROR] Model load/export failed: {e}")
+        return None
 
 model = load_model()
+if model is None:
+    raise SystemExit("Model failed to initialize.")
 
-# Optional warmup
-if device.startswith("cuda"):
-    dummy = torch.zeros(1, 3, IMG_SIZE, IMG_SIZE).to(device)
-    _ = model(dummy, imgsz=IMG_SIZE, device=device, half=half, verbose=False)
+# Warmup (small)
+try:
+    if device.startswith("cuda"):
+        dummy = torch.zeros(1, 3, IMG_SIZE, IMG_SIZE).to(device)
+        _ = model(dummy, imgsz=IMG_SIZE, device=device, half=half, verbose=False)
+        print("[INFO] Warmup done.")
+except Exception as e:
+    print(f"[WARN] Warmup failed: {e}")
 
 # Video capture
 if USE_GSTREAMER:
     cap = cv2.VideoCapture(GST_PIPELINE, cv2.CAP_GSTREAMER)
-else:
-    cap = cv2.VideoCapture("data/DJI_0020.MP4")
+    if not cap.isOpened():
+        print("[WARN] GStreamer pipeline failed. Falling back to standard capture.")
+        USE_GSTREAMER = False
 
+if not USE_GSTREAMER:
+    cap = cv2.VideoCapture("data/DJI_0020.MP4")
+    if not cap.isOpened():
+        raise SystemExit("[ERROR] Could not open video file.")
+
+print("[INFO] Starting inference loop.")
 frame_count = 0
 proc_count = 0
 start_time = time.time()
 
-while cap.isOpened():
-    ok, frame = cap.read()
-    if not ok:
-        break
-
-    # Optional skip
-    if FRAME_SKIP and (frame_count % (FRAME_SKIP + 1)) != 0:
-        frame_count += 1
-        continue
-
-    # Inference (no plotting to save time)
-    results = model(frame, device=device, imgsz=IMG_SIZE, half=half, verbose=False)
-
-    # If you need boxes, access results[0].boxes (avoid plot)
-    # boxes = results[0].boxes
-
-    if SHOW_WINDOW:
-        annotated = results[0].plot()
-        cv2.imshow("YOLO Fast", annotated)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+try:
+    while cap.isOpened():
+        ok, frame = cap.read()
+        if not ok:
+            print("[INFO] End of stream or read failure.")
             break
 
-    frame_count += 1
-    proc_count += 1
+        if FRAME_SKIP and (frame_count % (FRAME_SKIP + 1)) != 0:
+            frame_count += 1
+            continue
 
-    if PRINT_FPS and proc_count % 60 == 0:
-        elapsed = time.time() - start_time
-        fps = proc_count / elapsed
-        print(f"Processed frames: {proc_count} | Avg FPS: {fps:.2f}")
+        # Inference
+        try:
+            results = model(frame, device=device, imgsz=IMG_SIZE, half=half, verbose=False)
+        except Exception as e:
+            print(f"[ERROR] Inference error: {e}")
+            break
 
-cap.release()
-cv2.destroyAllWindows()
+        # (Avoid plotting for speed; uncomment if needed)
+        # if SHOW_WINDOW:
+        #     annotated = results[0].plot()
+        #     cv2.imshow("YOLO Fast", annotated)
+        #     if cv2.waitKey(1) & 0xFF == ord("q"):
+        #         break
+
+        frame_count += 1
+        proc_count += 1
+
+        if PRINT_FPS and proc_count % 60 == 0:
+            elapsed = time.time() - start_time
+            fps = proc_count / elapsed
+            print(f"[INFO] Processed: {proc_count} | Avg FPS: {fps:.2f}")
+
+except KeyboardInterrupt:
+    print("[INFO] Interrupted by user.")
+finally:
+    cap.release()
+    cv2.destroyAllWindows()
+    print("[INFO] Finished.")
